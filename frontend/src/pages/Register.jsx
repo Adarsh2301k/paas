@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
+import { sendOtp, verifyRegisterOtp } from "../api/api"; // ✅ updated
 
 const Register = () => {
   const navigate = useNavigate();
@@ -12,22 +13,58 @@ const Register = () => {
     otp: "",
     email: "",
   });
+  const [otpSent, setOtpSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  // ✅ Send OTP
+  const handleSendOtp = async () => {
+    try {
+      if (!/^[6-9]\d{9}$/.test(formData.mobile)) {
+        toast.error("Enter a valid 10-digit mobile number!");
+        return;
+      }
+      setLoading(true);
+      const res = await sendOtp({ mobile: formData.mobile, purpose: "register" });
+
+      toast.success(res.message || "OTP sent successfully!");
+      setOtpSent(true);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to send OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Verify OTP and register
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
     const { name, address, pincode, mobile, otp, email } = formData;
     if (!name || !address || !pincode || !mobile || !otp || !email) {
       toast.error("Please fill all fields!");
       return;
     }
 
-    console.log("User Registered:", formData);
-    toast.success("Registered Successfully!");
-    navigate("/login");
+    try {
+      setLoading(true);
+      const { user, token } = await verifyRegisterOtp(formData);
+      localStorage.setItem("token", token);
+      localStorage.setItem("userInfo", JSON.stringify(user));
+
+      // ✅ Refresh Navbar immediately
+      window.dispatchEvent(new Event("userUpdated"));
+
+      toast.success("Registration successful!");
+      navigate("/");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "OTP verification failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -39,7 +76,7 @@ const Register = () => {
         </h2>
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {/* Full Name */}
+          {/* Name */}
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">Full Name</label>
             <input
@@ -86,12 +123,12 @@ const Register = () => {
               name="pincode"
               value={formData.pincode}
               onChange={handleChange}
-              placeholder="e.g. 110001"
+              placeholder="110001"
               className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
             />
           </div>
 
-          {/* Mobile Number */}
+          {/* Mobile */}
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">Mobile Number</label>
             <input
@@ -105,36 +142,47 @@ const Register = () => {
           </div>
 
           {/* OTP */}
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-600 mb-1">OTP</label>
-            <div className="flex gap-3">
+          {otpSent && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-600 mb-1">OTP</label>
               <input
-                type="number"
+                type="text"
                 name="otp"
                 value={formData.otp}
                 onChange={handleChange}
                 placeholder="Enter OTP"
                 className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
               />
+            </div>
+          )}
+
+          {/* Buttons */}
+          {!otpSent ? (
+            <div className="md:col-span-2 mt-3">
               <button
                 type="button"
-                onClick={() => toast.success("OTP Sent (Demo)")}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-gray-700 font-medium transition"
+                onClick={handleSendOtp}
+                disabled={loading}
+                className={`w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 rounded-lg transition ${
+                  loading ? "opacity-70 cursor-not-allowed" : ""
+                }`}
               >
-                Send OTP
+                {loading ? "Sending OTP..." : "Send OTP"}
               </button>
             </div>
-          </div>
-
-          {/* Submit */}
-          <div className="md:col-span-2 mt-3">
-            <button
-              type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition text-base"
-            >
-              Register
-            </button>
-          </div>
+          ) : (
+            <div className="md:col-span-2 mt-3">
+              <button
+                type="submit"
+                disabled={loading}
+                className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition text-base ${
+                  loading ? "opacity-70 cursor-not-allowed" : ""
+                }`}
+              >
+                {loading ? "Verifying..." : "Register"}
+              </button>
+            </div>
+          )}
         </form>
 
         <p className="text-center text-sm text-gray-600 mt-6">

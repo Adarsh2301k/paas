@@ -6,11 +6,11 @@ import "swiper/css/autoplay";
 import { Autoplay } from "swiper/modules";
 
 // Poster images
-import averified from "../assets/averified.png"; // e.g. "We are Verified"
+import govpost from "../assets/govpost.png"; // e.g. "We are Verified"
 import heroImg from "../assets/hero2.png";
 import motive from "../assets/motiv.png"  // e.g. "Gov Approved Services"
 const Hero = () => {
-  const posters = [averified, heroImg, motive];
+  const posters = [govpost, heroImg, motive];
 
   return (
     <section className="flex flex-col-reverse lg:flex-row items-center justify-between max-w-5xl mx-auto px-4 py-8 lg:py-10 gap-6">

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast, { Toaster } from "react-hot-toast";
+import { sendOtp, verifyLoginOtp } from "../api/api"; // ✅ updated import
 
 const Login = () => {
   const navigate = useNavigate();
@@ -8,21 +9,34 @@ const Login = () => {
     mobile: "",
     otp: "",
   });
+  const [otpSent, setOtpSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSendOtp = () => {
-    if (!formData.mobile || formData.mobile.length !== 10) {
-      toast.error("Enter a valid 10-digit mobile number!");
-      return;
+  // ✅ Send OTP
+  const handleSendOtp = async () => {
+    try {
+      if (!/^[6-9]\d{9}$/.test(formData.mobile)) {
+        toast.error("Enter a valid 10-digit mobile number!");
+        return;
+      }
+      setLoading(true);
+      const res = await sendOtp({ mobile: formData.mobile, purpose: "login" });
+
+      toast.success(res.message || "OTP sent successfully!");
+      setOtpSent(true);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to send OTP");
+    } finally {
+      setLoading(false);
     }
-    // later: send API request to backend (POST /send-otp)
-    toast.success("OTP Sent (Demo)");
   };
 
-  const handleSubmit = (e) => {
+  // ✅ Verify OTP (for login)
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const { mobile, otp } = formData;
     if (!mobile || !otp) {
@@ -30,10 +44,22 @@ const Login = () => {
       return;
     }
 
-    // later: verify OTP with backend (POST /verify-otp)
-    console.log("Login Attempt:", formData);
-    toast.success("Login Successful!");
-    navigate("/"); // redirect to homepage or dashboard
+    try {
+      setLoading(true);
+      const { user, token } = await verifyLoginOtp({ mobile, otp });
+      localStorage.setItem("token", token);
+      localStorage.setItem("userInfo", JSON.stringify(user));
+
+      // ✅ Refresh Navbar immediately
+      window.dispatchEvent(new Event("userUpdated"));
+
+      toast.success("Login successful!");
+      navigate("/");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "OTP verification failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -45,9 +71,11 @@ const Login = () => {
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Mobile Number */}
+          {/* Mobile */}
           <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">Mobile Number</label>
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              Mobile Number
+            </label>
             <input
               type="tel"
               name="mobile"
@@ -55,13 +83,16 @@ const Login = () => {
               onChange={handleChange}
               placeholder="Enter 10-digit mobile number"
               className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+              disabled={loading}
             />
           </div>
 
-          {/* OTP */}
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">OTP</label>
-            <div className="flex gap-3">
+          {/* OTP Field (appears after send) */}
+          {otpSent && (
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">
+                OTP
+              </label>
               <input
                 type="text"
                 name="otp"
@@ -69,29 +100,42 @@ const Login = () => {
                 onChange={handleChange}
                 placeholder="Enter OTP"
                 className="w-full p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+                disabled={loading}
               />
-              <button
-                type="button"
-                onClick={handleSendOtp}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-gray-700 font-medium transition"
-              >
-                Send OTP
-              </button>
             </div>
-          </div>
+          )}
 
-          {/* Submit */}
-          <button
-            type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition text-base"
-          >
-            Login 
-          </button>
+          {/* Buttons */}
+          {!otpSent ? (
+            <button
+              type="button"
+              onClick={handleSendOtp}
+              disabled={loading}
+              className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition ${
+                loading ? "opacity-70 cursor-not-allowed" : ""
+              }`}
+            >
+              {loading ? "Sending OTP..." : "Send OTP"}
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={loading}
+              className={`w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg transition ${
+                loading ? "opacity-70 cursor-not-allowed" : ""
+              }`}
+            >
+              {loading ? "Verifying..." : "Login"}
+            </button>
+          )}
         </form>
 
         <p className="text-center text-sm text-gray-600 mt-6">
           Don’t have an account?{" "}
-          <Link to="/register" className="text-blue-600 font-medium hover:underline">
+          <Link
+            to="/register"
+            className="text-blue-600 font-medium hover:underline"
+          >
             Register here
           </Link>
         </p>

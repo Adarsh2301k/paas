@@ -4,23 +4,40 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
 
 const Navbar = () => {
-  const [open, setOpen] = useState(false); // mobile sidebar
-  const [showMenu, setShowMenu] = useState(false); // profile dropdown
+  const [open, setOpen] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [user, setUser] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ✅ Load user from localStorage (works with JWT or plain object)
+  // ✅ Load user from localStorage & update on login/logout
   useEffect(() => {
-    const data = localStorage.getItem("userInfo");
-    if (data) {
-      try {
-        setUser(JSON.parse(data));
-      } catch {
+    const syncUser = () => {
+      const storedUser = localStorage.getItem("userInfo");
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch {
+          setUser(null);
+        }
+      } else {
         setUser(null);
       }
-    }
+    };
+
+    syncUser();
+
+    // Listen for changes from other components (like login/register)
+    window.addEventListener("storage", syncUser);
+
+    // Custom event dispatch (manual refresh trigger)
+    window.addEventListener("userUpdated", syncUser);
+
+    return () => {
+      window.removeEventListener("storage", syncUser);
+      window.removeEventListener("userUpdated", syncUser);
+    };
   }, []);
 
   // ✅ Handle Logout
@@ -28,11 +45,14 @@ const Navbar = () => {
     localStorage.removeItem("userInfo");
     localStorage.removeItem("token");
     setUser(null);
-    toast.success("Logged out successfully");
+    toast.success("Logged out successfully!");
     navigate("/login");
+
+    // Trigger refresh for other tabs/components
+    window.dispatchEvent(new Event("userUpdated"));
   };
 
-  // ✅ Close dropdown on outside click or Esc
+  // ✅ Close dropdown when clicking outside
   useEffect(() => {
     if (!showMenu) return;
     const handleClickOutside = (e) => {
@@ -49,17 +69,19 @@ const Navbar = () => {
     };
   }, [showMenu]);
 
-  // ✅ Lock body scroll when sidebar is open
+  // ✅ Prevent background scroll when sidebar open
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "auto";
   }, [open]);
 
-  // ✅ Helper for active link highlight
+  // ✅ Highlight active route
   const isActive = (path) =>
-    location.pathname === path ? "text-blue-600 font-semibold" : "text-gray-700 hover:text-blue-600";
+    location.pathname === path
+      ? "text-blue-600 font-semibold"
+      : "text-gray-700 hover:text-blue-600";
 
   return (
-    <nav className="bg-white shadow-md sticky top-0 z-50">
+    <nav className="bg-white shadow-md sticky top-0 z-50 transition-all">
       <div className="max-w-6xl mx-auto px-6 py-3 flex justify-between items-center">
         {/* Logo */}
         <Link to="/" className="text-2xl font-bold text-blue-600 tracking-tight">
@@ -74,9 +96,11 @@ const Navbar = () => {
           <Link to="/services" className={isActive("/services")}>
             Services
           </Link>
-          <Link to="/mybooking" className={isActive("/mybooking")}>
-            My Bookings
-          </Link>
+          {user && (
+            <Link to="/mybooking" className={isActive("/mybooking")}>
+              My Bookings
+            </Link>
+          )}
           <Link to="/about" className={isActive("/about")}>
             About Us
           </Link>
@@ -101,7 +125,7 @@ const Navbar = () => {
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setShowMenu((p) => !p)}
-                className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center"
+                className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-sm"
               >
                 {user?.name ? (
                   <span className="text-sm font-semibold">
@@ -114,7 +138,7 @@ const Navbar = () => {
 
               {/* Dropdown */}
               {showMenu && (
-                <div className="absolute right-0 top-12 w-44 bg-white shadow-lg rounded-lg p-2 text-gray-700 animate-fadeIn">
+                <div className="absolute right-0 top-12 w-44 bg-white shadow-lg rounded-lg p-2 text-gray-700 transition-all duration-200 animate-fadeIn">
                   <Link
                     to="/myprofile"
                     className="block px-4 py-2 hover:bg-blue-50 rounded-md"
@@ -135,7 +159,10 @@ const Navbar = () => {
         </div>
 
         {/* Mobile Menu Button */}
-        <button className="md:hidden text-gray-700" onClick={() => setOpen(!open)}>
+        <button
+          className="md:hidden text-gray-700"
+          onClick={() => setOpen((prev) => !prev)}
+        >
           {open ? <X size={26} /> : <Menu size={26} />}
         </button>
       </div>
@@ -154,10 +181,18 @@ const Navbar = () => {
           <Link to="/" onClick={() => setOpen(false)} className={isActive("/")}>
             Home
           </Link>
-          <Link to="/services" onClick={() => setOpen(false)} className={isActive("/services")}>
+          <Link
+            to="/services"
+            onClick={() => setOpen(false)}
+            className={isActive("/services")}
+          >
             Services
           </Link>
-          <Link to="/about" onClick={() => setOpen(false)} className={isActive("/about")}>
+          <Link
+            to="/about"
+            onClick={() => setOpen(false)}
+            className={isActive("/about")}
+          >
             About Us
           </Link>
 
