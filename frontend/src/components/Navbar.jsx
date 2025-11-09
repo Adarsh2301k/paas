@@ -11,7 +11,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ✅ Load user from localStorage & update on login/logout
+  // ✅ Load and sync user state
   useEffect(() => {
     const syncUser = () => {
       const storedUser = localStorage.getItem("userInfo");
@@ -28,10 +28,7 @@ const Navbar = () => {
 
     syncUser();
 
-    // Listen for changes from other components (like login/register)
     window.addEventListener("storage", syncUser);
-
-    // Custom event dispatch (manual refresh trigger)
     window.addEventListener("userUpdated", syncUser);
 
     return () => {
@@ -40,19 +37,17 @@ const Navbar = () => {
     };
   }, []);
 
-  // ✅ Handle Logout
+  // ✅ Logout
   const handleLogout = () => {
     localStorage.removeItem("userInfo");
     localStorage.removeItem("token");
     setUser(null);
     toast.success("Logged out successfully!");
     navigate("/login");
-
-    // Trigger refresh for other tabs/components
     window.dispatchEvent(new Event("userUpdated"));
   };
 
-  // ✅ Close dropdown when clicking outside
+  // ✅ Dropdown close outside click
   useEffect(() => {
     if (!showMenu) return;
     const handleClickOutside = (e) => {
@@ -60,21 +55,15 @@ const Navbar = () => {
         setShowMenu(false);
       }
     };
-    const handleEsc = (e) => e.key === "Escape" && setShowMenu(false);
     document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEsc);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEsc);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showMenu]);
 
-  // ✅ Prevent background scroll when sidebar open
+  // ✅ Prevent scroll when sidebar open
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "auto";
   }, [open]);
 
-  // ✅ Highlight active route
   const isActive = (path) =>
     location.pathname === path
       ? "text-blue-600 font-semibold"
@@ -82,9 +71,12 @@ const Navbar = () => {
 
   return (
     <nav className="bg-white shadow-md sticky top-0 z-50 transition-all">
-      <div className="max-w-6xl mx-auto px-6 py-3 flex justify-between items-center">
+      <div className="max-w-6xl mx-auto px-5 py-3 flex justify-between items-center">
         {/* Logo */}
-        <Link to="/" className="text-2xl font-bold text-blue-600 tracking-tight">
+        <Link
+          to="/"
+          className="text-2xl font-bold text-blue-600 tracking-tight"
+        >
           LocalLink
         </Link>
 
@@ -122,12 +114,29 @@ const Navbar = () => {
               </Link>
             </div>
           ) : (
-            <div className="relative" ref={menuRef}>
+            <div className="relative flex items-center gap-3" ref={menuRef}>
+              {/* 👋 Greeting visible on all screens */}
+              <span className="text-gray-800 font-medium animate-fadeIn text-sm sm:text-base">
+                Hi,{" "}
+                <span className="font-semibold text-blue-600">
+                  {user?.name?.split(" ")[0]}
+                </span>{" "}
+                👋
+              </span>
+
+              {/* 🧑 Avatar */}
               <button
                 onClick={() => setShowMenu((p) => !p)}
-                className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-sm"
+                className="relative w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center overflow-hidden ring-2 ring-blue-500/30 hover:ring-blue-500/70 transition-all shadow-sm"
               >
-                {user?.name ? (
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt="User Avatar"
+                    className="w-full h-full object-cover"
+                    onError={(e) => (e.target.style.display = "none")}
+                  />
+                ) : user?.name ? (
                   <span className="text-sm font-semibold">
                     {user.name.charAt(0).toUpperCase()}
                   </span>
@@ -138,7 +147,7 @@ const Navbar = () => {
 
               {/* Dropdown */}
               {showMenu && (
-                <div className="absolute right-0 top-12 w-44 bg-white shadow-lg rounded-lg p-2 text-gray-700 transition-all duration-200 animate-fadeIn">
+                <div className="absolute right-0 top-12 w-44 bg-white shadow-lg rounded-lg p-2 text-gray-700 animate-fadeIn">
                   <Link
                     to="/myprofile"
                     className="block px-4 py-2 hover:bg-blue-50 rounded-md"
@@ -177,7 +186,33 @@ const Navbar = () => {
           <X size={28} />
         </button>
 
-        <nav className="flex flex-col gap-5 text-lg font-medium text-gray-700 mt-6">
+        {/* ✅ Greeting visible in mobile too */}
+        {user && (
+          <div className="flex items-center gap-3 mt-2 mb-3 animate-fadeIn">
+            <button
+              onClick={() => setShowMenu(false)}
+              className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center overflow-hidden shadow-sm"
+            >
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt="User Avatar"
+                  className="w-full h-full object-cover"
+                  onError={(e) => (e.target.style.display = "none")}
+                />
+              ) : (
+                <span className="text-sm font-semibold">
+                  {user.name.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </button>
+            <span className="text-gray-800 font-medium text-base">
+              Hi, <span className="font-semibold text-blue-600">{user.name.split(" ")[0]}</span> 👋
+            </span>
+          </div>
+        )}
+
+        <nav className="flex flex-col gap-5 text-lg font-medium text-gray-700 mt-4">
           <Link to="/" onClick={() => setOpen(false)} className={isActive("/")}>
             Home
           </Link>
