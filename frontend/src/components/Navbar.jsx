@@ -1,69 +1,83 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Menu, X, User, LogOut } from "lucide-react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Link, useNavigate } from "react-router-dom";
 
 const Navbar = () => {
-  const [open, setOpen] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
+  const [open, setOpen] = useState(false); // mobile sidebar
+  const [showMenu, setShowMenu] = useState(false); // profile dropdown
   const [user, setUser] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // ✅ Check login state on mount
+  // ✅ Load user from localStorage (works with JWT or plain object)
   useEffect(() => {
-    const userData = localStorage.getItem("userInfo");
-    if (userData) {
-      setUser(JSON.parse(userData));
+    const data = localStorage.getItem("userInfo");
+    if (data) {
+      try {
+        setUser(JSON.parse(data));
+      } catch {
+        setUser(null);
+      }
     }
   }, []);
 
-  // ✅ Logout function
+  // ✅ Handle Logout
   const handleLogout = () => {
     localStorage.removeItem("userInfo");
-    toast.success("Logged out successfully");
+    localStorage.removeItem("token");
     setUser(null);
+    toast.success("Logged out successfully");
     navigate("/login");
   };
 
-  // ✅ Close dropdown on outside click or ESC
+  // ✅ Close dropdown on outside click or Esc
   useEffect(() => {
-    const handleOutside = (e) => {
+    if (!showMenu) return;
+    const handleClickOutside = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setShowMenu(false);
       }
     };
-    const handleEsc = (e) => {
-      if (e.key === "Escape") setShowMenu(false);
-    };
-    document.addEventListener("mousedown", handleOutside);
+    const handleEsc = (e) => e.key === "Escape" && setShowMenu(false);
+    document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEsc);
     return () => {
-      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEsc);
     };
-  }, []);
+  }, [showMenu]);
+
+  // ✅ Lock body scroll when sidebar is open
+  useEffect(() => {
+    document.body.style.overflow = open ? "hidden" : "auto";
+  }, [open]);
+
+  // ✅ Helper for active link highlight
+  const isActive = (path) =>
+    location.pathname === path ? "text-blue-600 font-semibold" : "text-gray-700 hover:text-blue-600";
 
   return (
     <nav className="bg-white shadow-md sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-6 py-3 flex justify-between items-center">
         {/* Logo */}
-        <Link to="/" className="text-2xl font-bold text-blue-600">
+        <Link to="/" className="text-2xl font-bold text-blue-600 tracking-tight">
           LocalLink
         </Link>
 
-        {/* Desktop Navigation */}
+        {/* Desktop Menu */}
         <div className="hidden md:flex gap-8 items-center text-gray-700 font-medium">
-          <Link to="/" className="hover:text-blue-600 transition">
+          <Link to="/" className={isActive("/")}>
             Home
           </Link>
-          <Link to="/services" className="hover:text-blue-600 transition">
+          <Link to="/services" className={isActive("/services")}>
             Services
           </Link>
-          <Link to="/mybooking" className="hover:text-blue-600 transition">
+          <Link to="/mybooking" className={isActive("/mybooking")}>
             My Bookings
           </Link>
-          <Link to="/about" className="hover:text-blue-600 transition">
+          <Link to="/about" className={isActive("/about")}>
             About Us
           </Link>
 
@@ -86,7 +100,7 @@ const Navbar = () => {
           ) : (
             <div className="relative" ref={menuRef}>
               <button
-                onClick={() => setShowMenu((prev) => !prev)}
+                onClick={() => setShowMenu((p) => !p)}
                 className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center"
               >
                 {user?.name ? (
@@ -98,8 +112,9 @@ const Navbar = () => {
                 )}
               </button>
 
+              {/* Dropdown */}
               {showMenu && (
-                <div className="absolute right-0 top-12 w-44 bg-white shadow-lg rounded-lg p-2 text-gray-700 transition-all duration-150">
+                <div className="absolute right-0 top-12 w-44 bg-white shadow-lg rounded-lg p-2 text-gray-700 animate-fadeIn">
                   <Link
                     to="/myprofile"
                     className="block px-4 py-2 hover:bg-blue-50 rounded-md"
@@ -120,69 +135,69 @@ const Navbar = () => {
         </div>
 
         {/* Mobile Menu Button */}
-        <button className="md:hidden text-gray-700" onClick={() => setOpen(true)}>
-          <Menu size={26} />
+        <button className="md:hidden text-gray-700" onClick={() => setOpen(!open)}>
+          {open ? <X size={26} /> : <Menu size={26} />}
         </button>
       </div>
 
       {/* Mobile Sidebar */}
+      <div
+        className={`fixed top-0 right-0 h-full w-2/3 sm:w-1/2 bg-white shadow-2xl z-50 p-6 flex flex-col items-start gap-6 transform transition-transform duration-300 ${
+          open ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <button className="self-end text-gray-700 mb-4" onClick={() => setOpen(false)}>
+          <X size={28} />
+        </button>
+
+        <nav className="flex flex-col gap-5 text-lg font-medium text-gray-700 mt-6">
+          <Link to="/" onClick={() => setOpen(false)} className={isActive("/")}>
+            Home
+          </Link>
+          <Link to="/services" onClick={() => setOpen(false)} className={isActive("/services")}>
+            Services
+          </Link>
+          <Link to="/about" onClick={() => setOpen(false)} className={isActive("/about")}>
+            About Us
+          </Link>
+
+          {!user ? (
+            <>
+              <Link to="/login" onClick={() => setOpen(false)}>
+                Login
+              </Link>
+              <Link to="/register" onClick={() => setOpen(false)}>
+                Register
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link to="/mybooking" onClick={() => setOpen(false)}>
+                My Bookings
+              </Link>
+              <Link to="/myprofile" onClick={() => setOpen(false)}>
+                My Profile
+              </Link>
+              <button
+                onClick={() => {
+                  handleLogout();
+                  setOpen(false);
+                }}
+                className="text-left hover:text-blue-600"
+              >
+                Logout
+              </button>
+            </>
+          )}
+        </nav>
+      </div>
+
+      {/* Backdrop */}
       {open && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/30 z-40"
-            onClick={() => setOpen(false)}
-          ></div>
-
-          <div className="fixed top-0 right-0 h-full w-2/3 sm:w-1/2 bg-white shadow-2xl z-50 p-6 flex flex-col items-start gap-6 transition-transform duration-300">
-            <button
-              className="self-end text-gray-700"
-              onClick={() => setOpen(false)}
-            >
-              <X size={28} />
-            </button>
-
-            <nav className="flex flex-col gap-5 text-lg font-medium text-gray-700 mt-6">
-              <Link to="/" onClick={() => setOpen(false)}>
-                Home
-              </Link>
-              <Link to="/services" onClick={() => setOpen(false)}>
-                Services
-              </Link>
-              <Link to="/about" onClick={() => setOpen(false)}>
-                About Us
-              </Link>
-
-              {!user ? (
-                <>
-                  <Link to="/login" onClick={() => setOpen(false)}>
-                    Login
-                  </Link>
-                  <Link to="/register" onClick={() => setOpen(false)}>
-                    Register
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link to="/mybooking" onClick={() => setOpen(false)}>
-                    My Bookings
-                  </Link>
-                  <Link to="/myprofile" onClick={() => setOpen(false)}>
-                    My Profile
-                  </Link>
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                      setOpen(false);
-                    }}
-                    className="text-left hover:text-blue-600"
-                  >
-                    Logout
-                  </button>
-                </>
-              )}
-            </nav>
-          </div>
-        </>
+        <div
+          className="fixed inset-0 bg-black/30 z-40 transition-opacity duration-300"
+          onClick={() => setOpen(false)}
+        ></div>
       )}
     </nav>
   );

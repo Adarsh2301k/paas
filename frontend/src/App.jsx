@@ -10,7 +10,6 @@ import Register from "./pages/Register";
 import MyProfile from "./pages/MyProfile";
 import Aboutus from "./pages/Aboutus";
 import MyBooking from "./pages/MyBooking";
-import Otp from "./pages/Otp";
 
 function App() {
   return (
@@ -26,7 +25,6 @@ function App() {
           <Route path="/myprofile" element={<MyProfile />} />
           <Route path="/about" element={<Aboutus />} />
           <Route path="/mybooking" element={<MyBooking />} />
-          <Route path="/register/otp-verify" element={<Otp />} />
         </Routes>
         <Footer />
       </div>
