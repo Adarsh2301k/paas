@@ -10,10 +10,12 @@ import Register from "./pages/Register";
 import MyProfile from "./pages/MyProfile";
 import Aboutus from "./pages/Aboutus";
 import MyBooking from "./pages/MyBooking";
+import ServiceDetail from "./pages/ServiceDetail";
+import BookService from "./pages/BookService";
 
 function App() {
   return (
-    <Router>
+    
       <div>
         <Toaster position="top-center" reverseOrder={false} />
         <Navbar />
@@ -25,10 +27,12 @@ function App() {
           <Route path="/myprofile" element={<MyProfile />} />
           <Route path="/about" element={<Aboutus />} />
           <Route path="/mybooking" element={<MyBooking />} />
+          <Route path="/services/:id" element={<ServiceDetail />} />
+          <Route path="/book/:id" element={<BookService />} />
         </Routes>
         <Footer />
       </div>
-    </Router>
+   
   );
 }
 
