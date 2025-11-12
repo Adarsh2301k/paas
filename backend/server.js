@@ -15,6 +15,9 @@ app.use(express.json());
 
 
 // Routes
+import providerPanelRoutes from "./routes/providerPanelRoutes.js";
+app.use("/api/provider", providerPanelRoutes);
+
 app.use("/api/providers",providerRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/bookings", bookingRoutes);
