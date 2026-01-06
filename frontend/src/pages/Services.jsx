@@ -1,150 +1,270 @@
 import React, { useEffect, useState } from "react";
-import { Search, MapPin, Filter } from "lucide-react";
+import { MapPin, Filter } from "lucide-react";
 import toast from "react-hot-toast";
-import { getProviders } from "../api/api"; // 🔗 Import from your API.js
+import { getServices, getProfile } from "../api/api";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { CATEGORIES } from "../config/categories";
 import { Link } from "react-router-dom";
 
+
 const Services = () => {
-  const [providers, setProviders] = useState([]);
-  const [filtered, setFiltered] = useState([]);
-  const [search, setSearch] = useState("");
+  const navigate = useNavigate();
+
+  // 🔹 DATA
+  const [allServices, setAllServices] = useState([]); // MASTER
+  const [services, setServices] = useState([]);       // CURRENT DATASET
+  const [filtered, setFiltered] = useState([]);       // UI RESULT
+
+  // 🔹 UI STATE
   const [category, setCategory] = useState("All");
+  const [nearbyOnly, setNearbyOnly] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
 
-  const categories = [
-    "All",
-    "Electrician",
-    "Plumber",
-    "Repair",
-    "Cleaning",
-    "Painter",
-    "Tutor",
-    "Servicing",
-  ];
+  // 🔹 SEARCH (FROM HOME)
+  const [searchParams] = useSearchParams();
+  const query = searchParams.get("query")?.toLowerCase();
 
-  // ✅ Fetch providers from backend
+  // 🔹 INITIAL LOAD
   useEffect(() => {
-    const fetchProviders = async () => {
+    const load = async () => {
       try {
         setLoading(true);
-        const data = await getProviders();
-        setProviders(data);
-        setFiltered(data);
-      } catch (error) {
-        console.error("Error fetching providers:", error);
+        const data = await getServices();
+        const safe = Array.isArray(data) ? data : [];
+        setAllServices(safe);
+        setServices(safe);
+      } catch {
         toast.error("Failed to load services");
       } finally {
         setLoading(false);
       }
     };
-    fetchProviders();
+    load();
   }, []);
 
-  // ✅ Filter providers by category and search
+  // 🔹 FILTER (PURE)
   useEffect(() => {
-    const result = providers.filter((p) => {
-      const matchesCategory =
-        category === "All" || p.category.toLowerCase() === category.toLowerCase();
-      const matchesSearch =
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.category.toLowerCase().includes(search.toLowerCase()) ||
-        p.address?.toLowerCase().includes(search.toLowerCase());
-      return matchesCategory && matchesSearch;
-    });
+    let result = [...services];
+
+    // SEARCH
+    if (query) {
+      const matchedCategory = CATEGORIES.find((cat) =>
+        cat.keywords.some((k) => query.includes(k))
+      );
+
+      if (matchedCategory) {
+        result = result.filter(
+          (s) => s.category === matchedCategory.label
+        );
+      } else {
+        result = result.filter((s) =>
+          s.title?.toLowerCase().includes(query)
+        );
+      }
+    }
+
+    // CATEGORY
+    if (category !== "All") {
+      result = result.filter(
+        (s) =>
+          s.category?.toLowerCase() === category.toLowerCase()
+      );
+    }
+
     setFiltered(result);
-  }, [category, search, providers]);
+  }, [services, category, query]);
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4 md:px-8">
-      <div className="max-w-7xl mx-auto">
-        {/* 🔍 Search + Buttons */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-3">
-          <div className="relative w-full md:w-1/2">
-            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            <input
-              type="text"
-              placeholder="Search by service, category, or location..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-700"
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => toast("Nearby feature coming soon!")}
-              className="flex items-center gap-2 px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-100 transition"
-            >
-              <MapPin size={18} /> Nearby
-            </button>
-            <button
-              onClick={() => toast("Filter feature coming soon!")}
-              className="flex items-center gap-2 px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-100 transition"
-            >
-              <Filter size={18} /> Filter
-            </button>
-          </div>
+  // 🔹 CATEGORY CLICK
+  const handleCategoryChange = (cat) => {
+    setCategory(cat);
+
+    // EXIT NEARBY → RESTORE FULL DATA
+    if (nearbyOnly) {
+      setNearbyOnly(false);
+      setServices(allServices);
+    }
+
+    // CLEAR SEARCH WHEN ALL SELECTED
+    if (cat === "All" && query) {
+      navigate("/services", { replace: true });
+    }
+  };
+
+  // 🔹 NEARBY
+  const handleNearby = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return toast.error("Please login");
+
+      // CLEAR SEARCH
+      if (query) {
+        navigate("/services", { replace: true });
+      }
+
+      setLoading(true);
+      setNearbyOnly(true);
+      setCategory("All");
+
+      const user = await getProfile();
+      const pincode = user?.pincode;
+      if (!pincode) {
+        toast.error("Update pincode in profile");
+        return;
+      }
+
+      const data = await getServices({ pincode });
+      setServices(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error("Failed to load nearby services");
+    } finally {
+      setLoading(false);
+    }
+  };
+return (
+  <div className="min-h-screen bg-gray-50 px-4 md:px-8 py-6">
+    <div className="max-w-7xl mx-auto">
+
+      {/* 🔹 TOP CONTROLS */}
+      <div className="flex justify-end mb-6 gap-3">
+        <button
+          onClick={handleNearby}
+          className="md:hidden p-2 rounded-lg border bg-white"
+        >
+          <MapPin size={20} />
+        </button>
+
+        <button
+          onClick={() => setShowFilter(true)}
+          className="md:hidden p-2 rounded-lg border bg-white"
+        >
+          <Filter size={20} />
+        </button>
+
+        <div className="hidden md:flex gap-3">
+          <button
+            onClick={handleNearby}
+            className={`px-4 py-2 rounded-lg border ${
+              nearbyOnly
+                ? "bg-blue-600 text-white"
+                : "bg-white text-gray-700"
+            }`}
+          >
+            Nearby
+          </button>
+
+          <button
+            onClick={() => setShowFilter(true)}
+            className="px-4 py-2 rounded-lg border bg-white"
+          >
+            Filter
+          </button>
         </div>
+      </div>
 
-        {/* 🧭 Category Filter */}
-        <div className="flex flex-wrap gap-3 mb-8">
-          {categories.map((cat) => (
+      {/* 🔹 DESKTOP CATEGORIES */}
+      <div className="hidden md:flex flex-wrap gap-3 mb-10">
+        {["All", ...CATEGORIES.map((c) => c.label)].map((cat) => {
+          const isActive = category === cat && !nearbyOnly;
+          return (
             <button
               key={cat}
-              onClick={() => setCategory(cat)}
-              className={`px-4 py-2 rounded-full border transition text-sm font-medium ${category === cat
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-blue-50"
-                }`}
+              onClick={() => handleCategoryChange(cat)}
+              className={`px-5 py-2 rounded-full border ${
+                isActive
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-700"
+              }`}
             >
               {cat}
             </button>
+          );
+        })}
+      </div>
+
+      {/* 🔹 CONTENT */}
+      {loading ? (
+        <div className="text-center py-20 text-gray-500">
+          Loading…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-20 text-gray-500">
+          No services found
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          {filtered.map((s) => (
+            <Link
+              key={s._id}
+              to={`/services/${s._id}`}
+              className="group bg-white border rounded-xl overflow-hidden hover:shadow-md transition hover:-translate-y-0.5"
+            >
+              {/* IMAGE */}
+              <div className="h-32 w-full bg-gray-100">
+                <img
+                  src={s.image || "/placeholder.png"}
+                  alt={s.title}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+
+              {/* CONTENT */}
+              <div className="p-3">
+                <h3 className="text-sm font-semibold truncate group-hover:text-blue-600">
+                  {s.title}
+                </h3>
+
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {s.category}
+                </p>
+
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-sm font-bold text-blue-600">
+                    ₹{s.price}
+                  </span>
+                  <span className="text-[11px] text-gray-400 truncate max-w-[90px]">
+                    {s.provider?.name || "Provider"}
+                  </span>
+                </div>
+              </div>
+            </Link>
           ))}
         </div>
+      )}
 
-        {/* 🧰 Provider Cards */}
-        {loading ? (
-          <p className="text-center text-gray-500 mt-10">Loading services...</p>
-        ) : filtered.length === 0 ? (
-          <p className="text-center text-gray-500 mt-10">
-            No services found for your search.
-          </p>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            {filtered.map((p) => (
-              <div
-                key={p._id}
-                className="bg-white rounded-xl shadow-sm border hover:shadow-md transition overflow-hidden"
-              >
-                <Link to={`/services/${p._id}`}>
-                  <img
-                    src={p.image || "/assets/sample.jpg"}
-                    alt={p.name}
-                    className="h-28 w-full object-cover"
-                  />
-                  <div className="p-3">
-                    <h3 className="text-sm font-semibold text-gray-800 truncate">
-                      {p.name}
-                    </h3>
-                    <p className="text-xs text-gray-500">{p.category}</p>
-                    <div className="flex justify-between items-center mt-2">
-                      <span className="text-sm font-medium text-blue-600">
-                        ₹{p.price}
-                      </span>
-                      {p.verified && (
-                        <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                          ✅ Verified
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              </div>
-            ))}
+      {/* 🔹 MOBILE FILTER */}
+      {showFilter && (
+        <div className="fixed inset-0 bg-black/40 flex items-end md:hidden">
+          <div className="bg-white w-full p-5 rounded-t-2xl">
+            <div className="flex flex-wrap gap-3">
+              {["All", ...CATEGORIES.map((c) => c.label)].map((cat) => {
+                const isActive = category === cat && !nearbyOnly;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      handleCategoryChange(cat);
+                      setShowFilter(false);
+                    }}
+                    className={`px-4 py-2 rounded-full border ${
+                      isActive
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-gray-700"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
     </div>
-  );
+  </div>
+);
+
 };
 
 export default Services;

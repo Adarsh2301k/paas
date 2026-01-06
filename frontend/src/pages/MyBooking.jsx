@@ -1,20 +1,28 @@
 import React, { useEffect, useState } from "react";
 import { getMyBookings, cancelBooking } from "../api/api";
-import { Calendar, Clock, MapPin, XCircle, CheckCircle, Loader } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  XCircle,
+  Loader,
+} from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
 const MyBooking = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
+  const [processingId, setProcessingId] = useState(null);
 
-  // ✅ Fetch user’s bookings
+  // 🔹 Fetch user bookings
   useEffect(() => {
     const fetchBookings = async () => {
       try {
         setLoading(true);
         const data = await getMyBookings();
-        setBookings(data || []);
+
+        // ✅ backend sends { bookings }
+        setBookings(data?.bookings || []);
       } catch (err) {
         console.error(err);
         toast.error("Failed to load bookings");
@@ -22,84 +30,92 @@ const MyBooking = () => {
         setLoading(false);
       }
     };
+
     fetchBookings();
   }, []);
 
-  // ✅ Cancel Booking (if still pending)
-  const handleCancel = async (id) => {
-  try {
-    setProcessing(true);
-    await cancelBooking(id);
-    toast.success("Booking cancelled successfully");
+  // 🔹 Cancel booking
+  const handleCancel = async (bookingId) => {
+    try {
+      setProcessingId(bookingId);
+      await cancelBooking(bookingId);
 
-    // ✅ Update status locally
-    setBookings((prev) =>
-      prev.map((b) =>
-        b._id === id ? { ...b, status: "cancelled" } : b
-      )
-    );
-  } catch (err) {
-    toast.error(err.response?.data?.message || "Failed to cancel booking");
-  } finally {
-    setProcessing(false);
-  }
-};
+      toast.success("Booking cancelled");
 
+      setBookings((prev) =>
+        prev.map((b) =>
+          b._id === bookingId
+            ? { ...b, status: "cancelled" }
+            : b
+        )
+      );
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.message || "Failed to cancel booking"
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
-  if (loading)
+  if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen text-gray-600">
-        <Loader className="animate-spin mr-2" /> Loading bookings...
+        <Loader className="animate-spin mr-2" />
+        Loading bookings…
       </div>
     );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-10">
       <Toaster position="top-center" />
 
       <div className="max-w-6xl mx-auto">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          My Bookings
-        </h2>
+       
 
         {bookings.length === 0 ? (
           <p className="text-center text-gray-600">
-            You have no bookings yet. <br />{" "}
-            <span className="text-blue-600 font-medium">Book a service to get started!</span>
+            You have no bookings yet. <br />
+            <span className="text-blue-600 font-medium">
+              Book a service to get started!
+            </span>
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {bookings.map((b) => (
               <div
                 key={b._id}
-                className="bg-white rounded-xl shadow-md border p-4 flex flex-col justify-between hover:shadow-lg transition"
+                className="bg-white rounded-xl border shadow-sm p-4 flex flex-col justify-between hover:shadow-md transition"
               >
-                {/* Service Image */}
+                {/* SERVICE IMAGE */}
                 <img
-                  src={b.service?.image || "/assets/sample.jpg"}
-                  alt={b.service?.name}
+                  src={b.service?.image || "/placeholder.png"}
+                  alt={b.service?.title}
                   className="w-full h-40 object-cover rounded-lg mb-3"
                 />
 
-                {/* Service Info */}
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    {b.service?.name}
+                {/* SERVICE INFO */}
+                <div className="space-y-1">
+                  <h3 className="text-lg font-semibold text-gray-800 truncate">
+                    {b.service?.title}
                   </h3>
-                  <p className="text-gray-600 text-sm">{b.service?.category}</p>
+                  <p className="text-gray-600 text-sm">
+                    {b.service?.category}
+                  </p>
 
-                  <div className="flex items-center gap-2 text-gray-600 text-sm">
-                    <Calendar size={16} /> {b.date}
+                  <div className="flex items-center gap-2 text-gray-600 text-sm mt-2">
+                    <Calendar size={14} /> {b.date}
                   </div>
                   <div className="flex items-center gap-2 text-gray-600 text-sm">
-                    <Clock size={16} /> {b.time}
+                    <Clock size={14} /> {b.time}
                   </div>
                   <div className="flex items-center gap-2 text-gray-600 text-sm">
-                    <MapPin size={16} /> {b.address}
+                    <MapPin size={14} /> {b.address}
                   </div>
                 </div>
 
-                {/* Status + Actions */}
+                {/* STATUS + ACTION */}
                 <div className="flex justify-between items-center mt-4">
                   <span
                     className={`px-3 py-1 text-xs font-semibold rounded-full ${
@@ -115,12 +131,12 @@ const MyBooking = () => {
 
                   {b.status === "pending" && (
                     <button
-                      disabled={processing}
+                      disabled={processingId === b._id}
                       onClick={() => handleCancel(b._id)}
-                      className="text-red-500 hover:text-red-600 flex items-center gap-1 text-sm font-medium"
+                      className="text-red-500 hover:text-red-600 flex items-center gap-1 text-sm font-medium disabled:opacity-50"
                     >
                       <XCircle size={16} />
-                      Cancel
+                      {processingId === b._id ? "Cancelling…" : "Cancel"}
                     </button>
                   )}
                 </div>

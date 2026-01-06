@@ -7,28 +7,34 @@ const bookingSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+
     service: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Provider", // use your provider/service model name
+      ref: "Service", // ✅ FIXED
       required: true,
     },
+
     address: {
       type: String,
       required: true,
     },
+
     date: {
       type: String,
       required: true,
     },
+
     time: {
       type: String,
       required: true,
     },
+
     status: {
       type: String,
       enum: ["pending", "confirmed", "completed", "cancelled"],
       default: "pending",
     },
+
     otp: {
       type: String,
       default: null,

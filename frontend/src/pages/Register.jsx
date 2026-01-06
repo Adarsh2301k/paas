@@ -28,7 +28,7 @@ const Register = () => {
         return;
       }
       setLoading(true);
-      const res = await sendOtp({ mobile: formData.mobile, purpose: "register" });
+      const res = await sendOtp({ mobile: formData.mobile,email:formData.email, purpose: "register" });
 
       toast.success(res.message || "OTP sent successfully!");
       setOtpSent(true);

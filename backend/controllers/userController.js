@@ -148,7 +148,7 @@ export const verifyRegisterOtp = async (req, res) => {
   } catch (error) {
     console.error("Register error:", error);
     res.status(500).json({ message: "Server error during registration" });
-  }
+  } 
 };
 
 /**

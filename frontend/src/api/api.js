@@ -4,12 +4,13 @@ const API = axios.create({
   baseURL: "http://localhost:5000/api",
 });
 
-// 🔹 OTP Send (common)
+/* ================= AUTH / OTP ================= */
+
+// 🔹 Send OTP
 export const sendOtp = async (payload) => {
   const { data } = await API.post("/users/send-otp", payload);
   return data;
 };
-
 
 // 🔹 Login verify
 export const verifyLoginOtp = async (payload) => {
@@ -23,7 +24,8 @@ export const verifyRegisterOtp = async (payload) => {
   return data;
 };
 
-// 🔹 Profile routes
+/* ================= PROFILE ================= */
+
 export const getProfile = async () => {
   const token = localStorage.getItem("token");
   const { data } = await API.get("/users/profile", {
@@ -33,20 +35,72 @@ export const getProfile = async () => {
 };
 
 export const updateProfile = async (formData) => {
- 
-    const token = localStorage.getItem("token");
-    const { data } = await API.put("/users/profile", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data", // crucial for FormData
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    return data;
-  
+  const token = localStorage.getItem("token");
+  const { data } = await API.put("/users/profile", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return data;
+};
+// ================= SERVICES (FINAL) =================
+
+// 🔹 Get services (ALL / FILTERED)
+export const getServices = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  const { data } = await API.get(`/services?${query}`);
+  return data;
+};
+export const getServiceById = async (id) => {
+  const { data } = await API.get(`/services/${id}`);
+  return data;
+}
+
+// 🔹 Create service (provider / admin)
+export const createService = async (payload) => {
+  const token = localStorage.getItem("token");
+  const { data } = await API.post("/services", payload, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return data;
+};
+
+/* ================= BOOKINGS (UNCHANGED) ================= */
+
+// 🔹 Create booking
+export const createBooking = async (formData) => {
+  const token = localStorage.getItem("token");
+  const { data } = await API.post("/bookings/create", formData, { 
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return data;
+};
+
+// 🔹 Get my bookings
+export const getMyBookings = async () => {
+  const token = localStorage.getItem("token");
+  const { data } = await API.get("/bookings/my", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return data;
+};
+
+// 🔹 Cancel booking
+// api.js
+export const cancelBooking = async (bookingId) => {
+  const token = localStorage.getItem("token");
+  const { data } = await API.put(
+    `/bookings/cancel/${bookingId}`,
+    {},
+    {headers: {Authorization: `Bearer ${token}`,},
+  });
+  return data;
 };
 
 
-// services
+/* ================= OLD / PARKED (DO NOT USE NOW) ================= */
+// These stay for later, but Services.jsx should NOT use them
 
 export const getProviders = async (filters = {}) => {
   const query = new URLSearchParams(filters).toString();
@@ -58,40 +112,3 @@ export const getProviderDetails = async (id) => {
   const { data } = await API.get(`/providers/${id}`);
   return data;
 };
-
-
-// booking
-
-// 🔹 Create a new booking
-export const createBooking = async (formData) => {
-  const token = localStorage.getItem("token");
-  const { data } = await API.post("/bookings", formData, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return data;
-};
-// 🔹 Fetch all bookings for logged-in user
-export const getMyBookings = async () => {
-  const token = localStorage.getItem("token");
-  const { data } = await API.get("/bookings/my", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return data;
-};
-
-// 🔹 Cancel a booking
-// 🔹 Cancel a booking
-export const cancelBooking = async (id) => {
-  const token = localStorage.getItem("token");
-  const { data } = await API.put(
-    `/bookings/${id}/status`,
-    { status: "cancelled" },
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  return data;
-};
-
-
-// panel api./////////////////////
-
-
