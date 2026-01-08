@@ -69,3 +69,4 @@ export const updateProviderProfile = async (data) => {
   const res = await API.put("/profile", data);
   return res.data;
 };
+

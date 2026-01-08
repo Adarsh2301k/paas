@@ -9,6 +9,21 @@ import {
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
+const sortBookings = (bookings) => {
+  return [...bookings].sort((a, b) => {
+    // 1️⃣ Cancelled always last
+    if (a.status === "cancelled" && b.status !== "cancelled") return 1;
+    if (a.status !== "cancelled" && b.status === "cancelled") return -1;
+
+    // 2️⃣ Compare date + time
+    const aTime = new Date(`${a.date}T${a.time}`).getTime();
+    const bTime = new Date(`${b.date}T${b.time}`).getTime();
+
+    return aTime - bTime; // nearest first
+  });
+};
+
+
 const MyBooking = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +37,8 @@ const MyBooking = () => {
         const data = await getMyBookings();
 
         // ✅ backend sends { bookings }
-        setBookings(data?.bookings || []);
+       setBookings(sortBookings(data?.bookings || []));
+
       } catch (err) {
         console.error(err);
         toast.error("Failed to load bookings");
@@ -43,12 +59,13 @@ const MyBooking = () => {
       toast.success("Booking cancelled");
 
       setBookings((prev) =>
-        prev.map((b) =>
-          b._id === bookingId
-            ? { ...b, status: "cancelled" }
-            : b
-        )
-      );
+  sortBookings(
+    prev.map((b) =>
+      b._id === bookingId ? { ...b, status: "cancelled" } : b
+    )
+  )
+);
+
     } catch (err) {
       toast.error(
         err?.response?.data?.message || "Failed to cancel booking"
@@ -118,16 +135,18 @@ const MyBooking = () => {
                 {/* STATUS + ACTION */}
                 <div className="flex justify-between items-center mt-4">
                   <span
-                    className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                      b.status === "confirmed"
-                        ? "bg-green-100 text-green-700"
-                        : b.status === "pending"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
-                  </span>
+  className={`px-3 py-1 text-xs font-semibold rounded-full ${
+    b.status === "pending"
+      ? "bg-yellow-100 text-yellow-700"
+      : b.status === "accepted"
+      ? "bg-blue-100 text-blue-700"
+      : b.status === "completed"
+      ? "bg-green-100 text-green-700"
+      : "bg-red-100 text-red-800" // rejected
+  }`}
+>
+  {b.status.charAt(0).toUpperCase() + b.status.slice(1)}
+</span>
 
                   {b.status === "pending" && (
                     <button

@@ -98,6 +98,13 @@ export const cancelBooking = async (bookingId) => {
   return data;
 };
 
+// 🔹 Get available slots
+export const getAvailableSlots = async (serviceId, date) => {
+  const { data } = await API.get(
+    `/bookings/available-slots?serviceId=${serviceId}&date=${date}`
+  );
+  return data;
+};
 
 /* ================= OLD / PARKED (DO NOT USE NOW) ================= */
 // These stay for later, but Services.jsx should NOT use them

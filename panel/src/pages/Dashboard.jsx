@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { getMyServices, getProviderProfile } from "../api/providerApi";
+import { getProviderBookings } from "../api/bookingApi";
 
 const Dashboard = () => {
-  const navigate = useNavigate();
-
   const [provider, setProvider] = useState({
     name: "Provider",
     isBanned: false,
@@ -17,26 +15,30 @@ const Dashboard = () => {
     inactive: 0,
   });
 
-  // 🔒 STATIC booking stats (dummy for now)
-  const bookingStats = {
-    total: 7,
-    completed: 6,
-    pending:1,
-    earnings: 1200,
-  };
+  const [bookingStats, setBookingStats] = useState({
+    total: 0,
+    completed: 0,
+    pending: 0,
+    earnings: 0,
+  });
 
   useEffect(() => {
     loadProfile();
     loadServices();
+    loadBookings();
   }, []);
 
+  /* ================= PROFILE ================= */
   const loadProfile = async () => {
     try {
       const data = await getProviderProfile();
       setProvider(data);
-    } catch {}
+    } catch (err) {
+      console.error("Profile load failed");
+    }
   };
 
+  /* ================= SERVICES ================= */
   const loadServices = async () => {
     try {
       const services = await getMyServices();
@@ -47,13 +49,49 @@ const Dashboard = () => {
         active,
         inactive: services.length - active,
       });
-    } catch {}
+    } catch (err) {
+      console.error("Services load failed");
+    }
+  };
+
+  /* ================= BOOKINGS ================= */
+  const loadBookings = async () => {
+    try {
+      const data = await getProviderBookings();
+      const bookings = data.bookings || [];
+
+      const total = bookings.length;
+
+      const completed = bookings.filter(
+        (b) => b.status === "completed"
+      );
+
+      const pending = bookings.filter(
+        (b) => b.status === "pending" || b.status === "accepted"
+      );
+
+      const earnings = completed.reduce(
+        (sum, b) => sum + (b.service?.price || 0),
+        0
+      );
+
+      setBookingStats({
+        total,
+        completed: completed.length,
+        pending: pending.length,
+        earnings,
+      });
+    } catch (err) {
+      console.error("Bookings load failed");
+    }
   };
 
   const StatCard = ({ title, value, color }) => (
     <div className="bg-white rounded-xl shadow p-5">
       <p className="text-sm text-gray-500">{title}</p>
-      <p className={`text-3xl font-bold mt-2 ${color}`}>{value}</p>
+      <p className={`text-3xl font-bold mt-2 ${color}`}>
+        {value}
+      </p>
     </div>
   );
 
@@ -82,24 +120,50 @@ const Dashboard = () => {
       {/* ===== SERVICES STATS ===== */}
       <h2 className="text-lg font-semibold mb-3">🧰 Services</h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <StatCard title="Total Services" value={serviceStats.total} color="text-gray-800" />
-        <StatCard title="Active Services" value={serviceStats.active} color="text-green-600" />
-        <StatCard title="Inactive Services" value={serviceStats.inactive} color="text-red-500" />
+        <StatCard
+          title="Total Services"
+          value={serviceStats.total}
+          color="text-gray-800"
+        />
+        <StatCard
+          title="Active Services"
+          value={serviceStats.active}
+          color="text-green-600"
+        />
+        <StatCard
+          title="Inactive Services"
+          value={serviceStats.inactive}
+          color="text-red-500"
+        />
       </div>
 
-      {/* ===== BOOKINGS STATS (STATIC NOW) ===== */}
+      {/* ===== BOOKINGS STATS (REAL DATA) ===== */}
       <h2 className="text-lg font-semibold mb-3">📦 Bookings</h2>
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
-        <StatCard title="Total Bookings" value={bookingStats.total} color="text-gray-800" />
-        <StatCard title="Completed Jobs" value={bookingStats.completed} color="text-green-600" />
-        <StatCard title="Pending Jobs" value={bookingStats.pending} color="text-yellow-600" />
-        <StatCard title="Earnings (₹)" value={bookingStats.earnings} color="text-blue-600" />
+        <StatCard
+          title="Total Bookings"
+          value={bookingStats.total}
+          color="text-gray-800"
+        />
+        <StatCard
+          title="Completed Jobs"
+          value={bookingStats.completed}
+          color="text-green-600"
+        />
+        <StatCard
+          title="Pending Jobs"
+          value={bookingStats.pending}
+          color="text-yellow-600"
+        />
+        <StatCard
+          title="Earnings (₹)"
+          value={bookingStats.earnings}
+          color="text-blue-600"
+        />
       </div>
 
       {/* ===== QUICK ACTIONS ===== */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        
-
         <div className="bg-gray-100 rounded-xl p-4 text-sm text-gray-500">
           🛠 Support coming soon
         </div>

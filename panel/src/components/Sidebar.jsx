@@ -25,6 +25,9 @@ const Sidebar = ({ onClose }) => {
         <NavLink to="/dashboard" className={linkClass} onClick={onClose}>
           🏠 Dashboard
         </NavLink>
+        <NavLink to="/bookings" className={linkClass} onClick={onClose}>
+          📋 Bookings
+        </NavLink>
 
         <NavLink to="/create-service" className={linkClass} onClick={onClose}>
           ➕ Create Service

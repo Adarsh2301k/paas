@@ -1,11 +1,40 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getProfile, createBooking } from "../api/api";
-import { Calendar, Clock, Phone, User } from "lucide-react";
+import { Calendar, Phone, User } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
-import { getServiceById } from "../api/api";
 
+import {
+  getProfile,
+  getServiceById,
+  createBooking,
+  getAvailableSlots,
 
+} from "../api/api";
+
+/* ================= TIME SLOT GENERATOR ================= */
+const generateSlots = () => {
+  const slots = [];
+  let hour = 9;
+  let minute = 0;
+
+  while (hour < 21) {
+    slots.push(
+      `${hour.toString().padStart(2, "0")}:${minute
+        .toString()
+        .padStart(2, "0")}`
+    );
+    minute += 15;
+    if (minute === 60) {
+      minute = 0;
+      hour++;
+    }
+  }
+  return slots;
+};
+
+const timeSlots = generateSlots();
+
+/* ================= COMPONENT ================= */
 const BookService = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -15,56 +44,57 @@ const BookService = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
-  const [formData, setFormData] = useState({
-    address: "",
-    date: "",
-    time: "",
-  });
+  const [address, setAddress] = useState("");
+  const [date, setDate] = useState("");
+  const [selectedSlot, setSelectedSlot] = useState("");
+  const [bookedSlots, setBookedSlots] = useState([]);
 
-  // 🔹 Fetch user + service
+  /* ================= FETCH PROFILE + SERVICE ================= */
   useEffect(() => {
-  const fetchData = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      toast.error("Please login to continue");
-      navigate("/login");
-      return;
-    }
+    const loadData = async () => {
+      try {
+        const [userData, serviceData] = await Promise.all([
+          getProfile(),
+          getServiceById(id),
+        ]);
 
+        setUser(userData);
+        setService(serviceData);
+        setAddress(userData.address || "");
+      } catch {
+        toast.error("Failed to load booking details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [id]);
+
+  /* ================= FETCH BOOKED SLOTS ================= */
+ useEffect(() => {
+  if (!date) return;
+
+  const fetchBookedSlots = async () => {
     try {
-      const [userData, serviceData] = await Promise.all([
-        getProfile(),
-        getServiceById(id),
-      ]);
-
-      setUser(userData);
-      setService(serviceData);
-      setFormData((prev) => ({
-        ...prev,
-        address: userData.address || "",
-      }));
+      const data = await getAvailableSlots(id, date);
+      setBookedSlots(data.bookedSlots || []);
+      setSelectedSlot("");
     } catch (err) {
-      toast.error("Failed to load booking details");
-    } finally {
-      setLoading(false);
+      console.error("Slot fetch error:", err);
+      setBookedSlots([]);
     }
   };
 
-  fetchData();
-}, [id, navigate]); // ✅ FIXED & STABLE
+  fetchBookedSlots();
+}, [date, id]);
 
 
-  // 🔹 Input change
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
 
-  // 🔹 Submit booking
+  /* ================= BOOKING ================= */
   const handleBooking = async () => {
-    const { date, time, address } = formData;
-
-    if (!date || !time || !address.trim()) {
-      toast.error("Please fill all fields");
+    if (!date || !selectedSlot || !address.trim()) {
+      toast.error("Please select date, time & address");
       return;
     }
 
@@ -74,20 +104,14 @@ const BookService = () => {
       await createBooking({
         serviceId: id,
         date,
-        time,
+        time: selectedSlot,
         address,
       });
 
       toast.success("Booking confirmed 🎉");
-
-      setTimeout(() => {
-        navigate("/mybooking");
-      }, 1000);
+      setTimeout(() => navigate("/mybooking"), 1000);
     } catch (err) {
-      console.error(err);
-      toast.error(
-        err?.response?.data?.message || "Booking failed. Try again."
-      );
+      toast.error(err?.response?.data?.message || "Booking failed");
     } finally {
       setProcessing(false);
     }
@@ -95,111 +119,114 @@ const BookService = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen text-gray-500">
-        Loading booking info…
+      <div className="min-h-screen flex items-center justify-center text-gray-500">
+        Loading…
       </div>
     );
   }
 
   if (!service) {
     return (
-      <div className="flex justify-center items-center min-h-screen text-gray-500">
+      <div className="min-h-screen flex items-center justify-center">
         Service not found
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 md:px-8 py-10">
-      <Toaster position="top-center" />
+    <div className="min-h-screen bg-gray-50 px-4 py-6">
+      <Toaster />
 
-      {/* ===== BOOKING CARD ===== */}
-      <div className="max-w-5xl mx-auto bg-white border rounded-2xl overflow-hidden shadow-sm">
-        <div className="flex flex-col md:flex-row">
-
-          {/* LEFT — IMAGE */}
-          <div className="md:w-2/5 bg-gray-100">
+      <div className="max-w-4xl mx-auto bg-white rounded-xl shadow">
+        <div className="grid md:grid-cols-2">
+          {/* IMAGE */}
+          <div className="p-4 bg-gray-100 flex items-center justify-center">
             <img
               src={service.image || "/placeholder.png"}
               alt={service.title}
-              className="w-full h-72 object-cover"
+              className="w-full h-90 object-cover rounded-lg"
             />
           </div>
 
-          {/* RIGHT — FORM */}
-          <div className="md:w-3/5 p-6 flex flex-col justify-between">
+          {/* DETAILS */}
+          <div className="p-4 space-y-3">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">
-                {service.title}
-              </h1>
-
-              <p className="text-sm text-blue-600 mt-1">
-                {service.category}
-              </p>
-
-              <p className="text-xl font-semibold text-green-600 mt-2">
+              <h1 className="text-xl font-semibold">{service.title}</h1>
+              <p className="text-xs text-blue-600">{service.category}</p>
+              <p className="text-lg font-bold text-green-600">
                 ₹{service.price}
               </p>
+            </div>
 
-              {/* USER INFO */}
-              <div className="mt-4 space-y-2 text-sm text-gray-700">
-                <div className="flex items-center gap-2">
-                  <User size={16} /> {user?.name}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone size={16} /> {user?.mobile}
-                </div>
+            {/* INFO */}
+            <div className="flex flex-wrap gap-3 text-xs text-gray-600">
+              <span className="flex items-center gap-1">
+                <User size={14} /> {user?.name}
+              </span>
+              <span className="flex items-center gap-1">
+                <Phone size={14} /> {user?.mobile}
+              </span>
+              <span>Provider: {service.provider?.name}</span>
+            </div>
+
+            {/* ADDRESS */}
+            <div>
+              <label className="text-xs font-medium">Service Address</label>
+              <textarea
+                rows="1"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="w-full mt-1 border rounded-md px-2 py-1 text-sm"
+              />
+            </div>
+
+            {/* DATE */}
+            <div>
+              <label className="text-xs font-medium">Select Date</label>
+              <div className="flex items-center gap-2 mt-1">
+                <Calendar size={14} />
+                <input
+                  type="date"
+                  min={new Date().toISOString().split("T")[0]}
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="border rounded-md px-2 py-1 text-sm w-full"
+                />
+              </div>
+            </div>
+
+            {/* TIME SLOTS */}
+            <div>
+              <label className="text-xs font-medium">Select Time Slot</label>
+              <div className="grid grid-cols-5 gap-2 mt-2 max-h-40 overflow-y-auto">
+                {timeSlots.map((slot) => {
+                  const isBooked = bookedSlots.includes(slot);
+                  const isSelected = selectedSlot === slot;
+
+                  return (
+                    <button
+                      key={slot}
+                      disabled={isBooked}
+                      onClick={() => setSelectedSlot(slot)}
+                      className={`border rounded-md py-1 text-xs transition ${
+                        isBooked
+                          ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                          : isSelected
+                          ? "bg-blue-600 text-white"
+                          : "hover:border-blue-400"
+                      }`}
+                    >
+                      {slot}
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* FORM */}
-              <div className="mt-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">
-                    Service Address
-                  </label>
-                  <textarea
-                    name="address"
-                    rows="2"
-                    value={formData.address}
-                    onChange={handleChange}
-                    className="w-full border rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">
-                      Date
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <Calendar size={16} className="text-gray-500" />
-                      <input
-                        type="date"
-                        name="date"
-                        min={new Date().toISOString().split("T")[0]}
-                        value={formData.date}
-                        onChange={handleChange}
-                        className="border rounded-md p-2 w-full focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">
-                      Time
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <Clock size={16} className="text-gray-500" />
-                      <input
-                        type="time"
-                        name="time"
-                        value={formData.time}
-                        onChange={handleChange}
-                        className="border rounded-md p-2 w-full focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                </div>
+              {/* LEGEND */}
+              <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                <span>⬜ Available</span>
+                <span>🟦 Selected</span>
+                <span>⬛ Booked</span>
               </div>
             </div>
 
@@ -207,27 +234,16 @@ const BookService = () => {
             <button
               onClick={handleBooking}
               disabled={processing}
-              className={`mt-6 w-full ${
+              className={`w-full py-2 rounded-md text-white text-sm font-semibold ${
                 processing
-                  ? "bg-blue-400 cursor-not-allowed"
+                  ? "bg-blue-400"
                   : "bg-blue-600 hover:bg-blue-700"
-              } text-white py-2.5 rounded-lg font-semibold transition`}
+              }`}
             >
-              {processing ? "Processing..." : "Confirm Booking"}
+              {processing ? "Processing…" : "Confirm Booking"}
             </button>
           </div>
         </div>
-      </div>
-
-      {/* INFO */}
-      <div className="max-w-5xl mx-auto mt-10 text-center text-gray-600">
-        <h3 className="font-semibold text-lg mb-2">
-          What happens next?
-        </h3>
-        <p className="text-sm">
-          Our service partner will contact you shortly.
-          You can manage your bookings from “My Bookings”.
-        </p>
       </div>
     </div>
   );

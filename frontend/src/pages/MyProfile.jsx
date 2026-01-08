@@ -237,9 +237,13 @@ const Profile = () => {
                   alt={b.service?.title}
                   className="w-full h-32 object-cover rounded-lg mb-3"
                 />
-                <h4 className="font-bold">{b.service?.title}</h4>
+                <h4 className="">{b.service?.title}</h4>
+                
                 <p className="text-sm text-gray-600">
-                  {b.service?.category}
+                  Date: {b.date}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Time: {b.time}
                 </p>
                 <p className="text-sm font-medium mt-1">
                   ₹{b.service?.price}
