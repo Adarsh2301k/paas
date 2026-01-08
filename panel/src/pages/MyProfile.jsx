@@ -23,19 +23,21 @@ const Profile = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false);
 
   /* ================= LOAD PROFILE ================= */
   useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const data = await getProviderProfile();
-        setForm(data);
-      } catch {
-        toast.error("Failed to load profile");
-      }
-    };
     loadProfile();
   }, []);
+
+  const loadProfile = async () => {
+    try {
+      const data = await getProviderProfile();
+      setForm(data);
+    } catch {
+      toast.error("Failed to load profile");
+    }
+  };
 
   /* ================= HANDLERS ================= */
   const changeHandler = (e) => {
@@ -43,6 +45,8 @@ const Profile = () => {
   };
 
   const toggleCategory = (cat) => {
+    if (!editMode) return;
+
     setForm((prev) => ({
       ...prev,
       categories: prev.categories.includes(cat)
@@ -65,6 +69,7 @@ const Profile = () => {
         categories: form.categories,
       });
       toast.success("Profile updated");
+      setEditMode(false);
     } catch {
       toast.error("Update failed");
     } finally {
@@ -72,11 +77,26 @@ const Profile = () => {
     }
   };
 
+  const cancelEdit = () => {
+    setEditMode(false);
+    loadProfile(); // revert changes
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-4">
-      <h1 className="text-xl font-semibold mb-4">
-        👤 My Profile
-      </h1>
+      {/* HEADER */}
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-semibold">👤 My Profile</h1>
+
+        {!editMode && (
+          <button
+            onClick={() => setEditMode(true)}
+            className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-100"
+          >
+            ✏️ Edit Profile
+          </button>
+        )}
+      </div>
 
       <div className="bg-white rounded-xl shadow p-4 md:p-6">
         {/* GRID */}
@@ -90,12 +110,16 @@ const Profile = () => {
               name="name"
               value={form.name}
               onChange={changeHandler}
-              className="w-full border rounded-lg p-2 text-sm"
-              placeholder="Your name"
+              disabled={!editMode}
+              className={`w-full border rounded-lg p-2 text-sm ${
+                !editMode
+                  ? "bg-gray-100 cursor-not-allowed"
+                  : ""
+              }`}
             />
           </div>
 
-          {/* Mobile (READ ONLY) */}
+          {/* Mobile */}
           <div>
             <label className="block text-sm font-medium mb-1">
               Mobile Number
@@ -119,12 +143,15 @@ const Profile = () => {
               name="pincode"
               value={form.pincode}
               onChange={changeHandler}
-              className="w-full border rounded-lg p-2 text-sm"
-              placeholder="6-digit pincode"
+              disabled={!editMode}
+              className={`w-full border rounded-lg p-2 text-sm ${
+                !editMode
+                  ? "bg-gray-100 cursor-not-allowed"
+                  : ""
+              }`}
             />
           </div>
         </div>
-        
 
         {/* Categories */}
         <div className="mt-5">
@@ -138,10 +165,15 @@ const Profile = () => {
                 key={cat}
                 type="button"
                 onClick={() => toggleCategory(cat)}
+                disabled={!editMode}
                 className={`px-3 py-1 rounded-full text-sm border ${
                   form.categories.includes(cat)
                     ? "bg-blue-600 text-white border-blue-600"
                     : "bg-white text-gray-700"
+                } ${
+                  !editMode
+                    ? "opacity-70 cursor-not-allowed"
+                    : ""
                 }`}
               >
                 {cat}
@@ -150,16 +182,26 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Save Button */}
-        <div className="mt-6">
-          <button
-            onClick={submitHandler}
-            disabled={loading}
-            className="w-full md:w-auto bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
+        {/* ACTION BUTTONS */}
+        {editMode && (
+          <div className="mt-6 flex gap-3">
+            <button
+              onClick={submitHandler}
+              disabled={loading}
+              className="bg-white-600 text-black px-6 py-2  border rounded-lg hover:bg-green-500 disabled:opacity-50"
+            >
+              {loading ? "Saving..." : "Save Changes"}
+            </button>
+
+            <button
+              onClick={cancelEdit}
+              disabled={loading}
+              className="border px-6 py-2 rounded-lg hover:bg-red-500"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

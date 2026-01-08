@@ -248,56 +248,61 @@ export const deleteService = async (req, res) => {
 
 
 /* ================= GET PROVIDER PROFILE ================= */
+
 export const getProviderProfile = async (req, res) => {
   try {
-    const provider = req.provider;
+    if (!req.provider) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const provider = await Provider.findById(req.provider._id);
+
+    if (!provider) {
+      return res.status(404).json({ message: "Provider not found" });
+    }
 
     return res.status(200).json({
       name: provider.name,
       mobile: provider.mobile,
       pincode: provider.pincode,
       categories: provider.categories,
-      createdAt: provider.createdAt,
       isBanned: provider.isBanned,
+      isAdmin: provider.isAdmin || false,
     });
   } catch (err) {
-    console.error("GET PROVIDER PROFILE ERROR:", err);
+    console.error("GET PROFILE ERROR:", err);
     return res.status(500).json({ message: "Failed to fetch profile" });
   }
 };
 
+
 /* ================= UPDATE PROVIDER PROFILE ================= */
 export const updateProviderProfile = async (req, res) => {
   try {
+    if (!req.provider) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const provider = await Provider.findById(req.provider._id);
+
+    if (!provider) {
+      return res.status(404).json({ message: "Provider not found" });
+    }
+
     const { name, pincode, categories } = req.body;
 
-    if (req.body.mobile) {
-      return res
-        .status(400)
-        .json({ message: "Mobile number cannot be updated" });
-    }
+    if (name) provider.name = name;
+    if (pincode) provider.pincode = pincode;
+    if (categories) provider.categories = categories;
 
-    if (pincode && !validator.isPostalCode(pincode, "IN")) {
-      return res.status(400).json({ message: "Invalid pincode" });
-    }
+    await provider.save();
 
-    if (name) req.provider.name = name;
-    if (pincode) req.provider.pincode = pincode;
-    if (categories) req.provider.categories = categories;
-
-    await req.provider.save();
-
-    return res.status(200).json({
+    res.status(200).json({
       message: "Profile updated successfully",
-      provider: {
-        name: req.provider.name,
-        mobile: req.provider.mobile,
-        pincode: req.provider.pincode,
-        categories: req.provider.categories,
-      },
     });
   } catch (err) {
-    console.error("UPDATE PROVIDER PROFILE ERROR:", err);
-    return res.status(500).json({ message: "Failed to update profile" });
+    console.error("UPDATE PROFILE ERROR:", err);
+    res.status(500).json({ message: "Failed to update profile" });
   }
 };
+
