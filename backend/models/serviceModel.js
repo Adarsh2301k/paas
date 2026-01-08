@@ -1,11 +1,24 @@
 import mongoose from "mongoose";
 
+/**
+ * Service
+ * - Created & managed by Provider
+ * - Visible to Users only if active + approved
+ */
+
 const serviceSchema = new mongoose.Schema(
   {
+    /* ===== BASIC INFO ===== */
     title: {
       type: String,
       required: true,
       trim: true,
+    },
+
+    description: {
+      type: String,
+      trim: true,
+      default: "",
     },
 
     category: {
@@ -17,34 +30,53 @@ const serviceSchema = new mongoose.Schema(
         "AC Repair",
         "Cleaning",
         "Carpenter",
-        "Electronics Repair"
+        "Electronics Repair",
       ],
     },
 
+    /* ===== SEARCH / INTENT ===== */
     keywords: {
-      type: [String], // 🔑 search ke liye
+      type: [String], // system + optional provider keywords
       default: [],
     },
 
+    /* ===== PRICING ===== */
     price: {
       type: Number,
       required: true,
+      min: 0,
     },
 
+    /* ===== MEDIA ===== */
+    image: {
+      type: [String], // image URLs (Cloudinary / S3 later)
+      default: [],
+    },
+
+    /* ===== LOCATION ===== */
     pincode: {
       type: String,
-      required: true,
+      required: true, // auto-attached from provider profile
+      index: true,
     },
 
+    /* ===== OWNERSHIP ===== */
     provider: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Provider",
-      required: false, // abhi NULL allow
+      required: true,
+      index: true,
     },
 
+    /* ===== STATUS FLAGS ===== */
     isActive: {
       type: Boolean,
-      default: true,
+      default: true, // provider controlled
+    },
+
+    isApproved: {
+      type: Boolean,
+      default: false, // admin control later
     },
   },
   { timestamps: true }

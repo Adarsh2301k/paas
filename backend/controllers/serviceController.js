@@ -1,13 +1,28 @@
 import Service from "../models/serviceModel.js";
 
 /**
- * ✅ Create service (provider / admin)
+ * ✅ Create service (provider)
  */
 export const createService = async (req, res) => {
   try {
-    const { title, category, price, pincode, keywords, provider } = req.body;
+    // 🔒 Block banned providers
+    if (req.provider.isBanned) {
+      return res.status(403).json({
+        message: "Your account has been banned by admin",
+      });
+    }
+   
 
-    if (!title || !category || !price || !pincode) {
+
+    const {
+      title,
+      category,
+      price,
+      description = "",
+      keywords = [],
+    } = req.body;
+
+    if (!title || !category || !price) {
       return res.status(400).json({ message: "Missing fields" });
     }
 
@@ -15,19 +30,27 @@ export const createService = async (req, res) => {
       title,
       category,
       price,
-      pincode,
-      keywords: keywords || [],
-      provider: provider || null,
+      description,
+      keywords,
+
+      // 🔒 trusted data
+      pincode: req.provider.pincode,
+      provider: req.provider._id,
+
+      // 🔒 admin-controlled
+      isApproved: false,
+      isActive: true,
     });
 
-    res.status(201).json(service);
+    return res.status(201).json(service);
   } catch (err) {
-    res.status(500).json({ message: "Service create failed" });
+    console.error("CREATE SERVICE ERROR:", err);
+    return res.status(500).json({ message: "Service create failed" });
   }
 };
 
 /**
- * ✅ ONE API FOR:
+ * ✅ ONE API FOR USER:
  * - all services
  * - nearby
  * - category
@@ -50,13 +73,18 @@ export const getServices = async (req, res) => {
       ];
     }
 
-    const services = await Service.find(filter)
+    const services = await Service.find({
+      isApproved: true,
+      isActive: true,
+      ...filter,
+    })
       .populate("provider", "name")
       .sort({ createdAt: -1 });
 
-    res.json(services);
+    return res.status(200).json(services);
   } catch (err) {
-    res.status(500).json({ message: "Failed to fetch services" });
+    console.error("GET SERVICES ERROR:", err);
+    return res.status(500).json({ message: "Failed to fetch services" });
   }
 };
 
@@ -64,12 +92,18 @@ export const getServices = async (req, res) => {
  * ✅ Service detail page
  */
 export const getServiceById = async (req, res) => {
-  const service = await Service.findById(req.params.id)
-    .populate("provider", "name phone");
+  try {
+    const service = await Service.findById(req.params.id).populate(
+      "provider",
+      "name mobile"
+    );
 
-  if (!service) {
-    return res.status(404).json({ message: "Service not found" });
+    if (!service) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    return res.status(200).json(service);
+  } catch (err) {
+    return res.status(400).json({ message: "Invalid service id" });
   }
-
-  res.json(service);
 };

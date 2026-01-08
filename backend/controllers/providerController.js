@@ -1,203 +1,303 @@
+import jwt from "jsonwebtoken";
+import validator from "validator";
 import Provider from "../models/providerModel.js";
 import Otp from "../models/otpModel.js";
-import Booking from "../models/bookingModel.js";
-import jwt from "jsonwebtoken";
+import Service from "../models/serviceModel.js";
 
-// ✅ Generate Token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || "fallback_secret", {
-    expiresIn: "30d",
-  });
+
+const blockIfBanned = (provider, res) => {
+  if (provider.isBanned) {
+    res.status(403).json({
+      message: "You are banned by admin. Action not allowed.",
+    });
+    return true;
+  }
+  return false;
 };
 
-// =================================================================
-// ✅ 1. SEND OTP
-// =================================================================
+/* ================= SEND OTP ================= */
 export const sendProviderOtp = async (req, res) => {
   try {
     const { mobile } = req.body;
 
-    if (!mobile) {
-      return res.status(400).json({ message: "Mobile number is required" });
+    if (
+      !mobile ||
+      !validator.isMobilePhone(mobile, "en-IN", { strictMode: false })
+    ) {
+      return res.status(400).json({ message: "Invalid mobile number" });
     }
 
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    await Otp.create({ mobile, otp });
+    await Otp.deleteMany({ mobile, purpose: "provider" });
 
-    console.log("🔹 Provider OTP:", otp);
+    await Otp.create({
+      mobile,
+      otp,
+      purpose: "provider",
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    });
 
-    res.json({ message: "OTP sent", otp }); // remove otp in production
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.log("PROVIDER OTP:", otp); // dev only
+
+    return res.status(200).json({ message: "OTP sent successfully" });
+  } catch (err) {
+    console.error("SEND PROVIDER OTP ERROR:", err);
+    return res.status(500).json({ message: "Failed to send OTP" });
   }
 };
 
-// =================================================================
-// ✅ 2. VERIFY OTP → LOGIN or TEMP REGISTER
-// =================================================================
+/* ================= VERIFY OTP ================= */
 export const verifyProviderOtp = async (req, res) => {
   try {
     const { mobile, otp } = req.body;
 
-    const checkOtp = await Otp.findOne({ mobile, otp });
-    if (!checkOtp) {
-      return res.status(400).json({ message: "Invalid OTP" });
+    if (
+      !mobile ||
+      !otp ||
+      !validator.isMobilePhone(mobile, "en-IN", { strictMode: false })
+    ) {
+      return res.status(400).json({ message: "Invalid input" });
     }
 
-    let provider = await Provider.findOne({ mobile });
+    const record = await Otp.findOne({
+      mobile,
+      otp: otp.toString(),
+      purpose: "provider",
+      expiresAt: { $gt: new Date() },
+    });
 
-    // ✅ If provider does NOT exist → create temp account
-    let exists = true;
+    if (!record) {
+      return res.status(400).json({ message: "Invalid or expired OTP" });
+    }
 
+    // OTP used → delete
+    await Otp.deleteMany({ mobile, purpose: "provider" });
+
+    const provider = await Provider.findOne({ mobile });
+
+    // 🔴 IMPORTANT FIX
     if (!provider) {
-      exists = false;
-      provider = await Provider.create({
-        mobile,
-        profileCompleted: false,
-        verified: false,
+      return res.status(200).json({
+        needsRegistration: true,
+        mobile, // frontend can prefill
       });
     }
 
-    const token = generateToken(provider._id);
+    const isAdmin = mobile === process.env.ADMIN_MOBILE;
 
-    res.json({
-      exists,
+    const token = jwt.sign(
+      {
+        id: provider._id,
+        role: "provider",
+        isAdmin,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    return res.status(200).json({
       token,
-      provider,
+      isAdmin,
     });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    console.error("VERIFY PROVIDER OTP ERROR:", err);
+    return res.status(500).json({ message: "OTP verification failed" });
   }
 };
 
-// =================================================================
-// ✅ 3. REGISTER PROVIDER (after OTP)
-// =================================================================
+/* ================= REGISTER PROVIDER ================= */
 export const registerProvider = async (req, res) => {
   try {
-    const providerId = req.provider._id;
+    const { name, mobile, pincode, categories } = req.body;
 
-    const updated = await Provider.findByIdAndUpdate(
-      providerId,
-      {
-        ...req.body,
-        profileCompleted: true,
-        verified: false, // admin will verify later
-      },
-      { new: true }
+    if (
+      !name ||
+      !mobile ||
+      !pincode ||
+      !validator.isMobilePhone(mobile, "en-IN", { strictMode: false })
+    ) {
+      return res.status(400).json({ message: "Invalid fields" });
+    }
+
+    if (!validator.isPostalCode(pincode, "IN")) {
+      return res.status(400).json({ message: "Invalid pincode" });
+    }
+
+    const exists = await Provider.findOne({ mobile });
+    if (exists) {
+      return res.status(400).json({ message: "Provider already exists" });
+    }
+
+    const provider = await Provider.create({
+      name,
+      mobile,
+      pincode,
+      categories,
+    });
+
+    const token = jwt.sign(
+      { id: provider._id, role: "provider" },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
     );
 
-    res.json(updated);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(201).json({ token });
+  } catch (err) {
+    console.error("REGISTER PROVIDER ERROR:", err);
+    return res.status(500).json({ message: "Provider registration failed" });
   }
 };
 
-// =================================================================
-// ✅ 4. GET PROVIDER PROFILE
-// =================================================================
+/* ================= CREATE SERVICE ================= */
+export const createService = async (req, res) => {
+  try {
+    if (blockIfBanned(req.provider, res)) return;
+
+    const { title, category, price, description } = req.body;
+
+    if (!title || !category || !price) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const imageUrl = req.file ? req.file.path : "";
+
+    const service = await Service.create({
+      title,
+      category,
+      price,
+      description,
+      image: imageUrl,
+      pincode: req.provider.pincode,
+      provider: req.provider._id,
+      isActive: true,
+      isApproved: false,
+    });
+
+    return res.status(201).json(service);
+  } catch (err) {
+    console.error("CREATE SERVICE ERROR:", err);
+    return res.status(500).json({ message: "Failed to create service" });
+  }
+};
+
+
+/* ================= GET MY SERVICES ================= */
+export const getMyServices = async (req, res) => {
+  try {
+    const services = await Service.find({
+      provider: req.provider._id,
+    }).sort({ createdAt: -1 });
+
+    return res.status(200).json(services);
+  } catch (err) {
+    console.error("GET MY SERVICES ERROR:", err);
+    return res.status(500).json({ message: "Failed to fetch services" });
+  }
+};
+
+/* ================= TOGGLE SERVICE STATUS ================= */
+export const toggleServiceStatus = async (req, res) => {
+  try {
+    if (blockIfBanned(req.provider, res)) return;
+
+    const { id } = req.params;
+
+    const service = await Service.findOne({
+      _id: id,
+      provider: req.provider._id,
+    });
+
+    if (!service) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    service.isActive = !service.isActive;
+    await service.save();
+
+    return res.status(200).json(service);
+  } catch (err) {
+    console.error("TOGGLE SERVICE ERROR:", err);
+    return res.status(500).json({ message: "Failed to update service" });
+  }
+};
+
+
+/* ================= DELETE SERVICE ================= */
+export const deleteService = async (req, res) => {
+  try {
+    if (blockIfBanned(req.provider, res)) return;
+
+    const { id } = req.params;
+
+    const service = await Service.findOneAndDelete({
+      _id: id,
+      provider: req.provider._id,
+    });
+
+    if (!service) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    return res.status(200).json({ message: "Service deleted" });
+  } catch (err) {
+    console.error("DELETE SERVICE ERROR:", err);
+    return res.status(500).json({ message: "Failed to delete service" });
+  }
+};
+
+
+/* ================= GET PROVIDER PROFILE ================= */
 export const getProviderProfile = async (req, res) => {
   try {
-    const provider = await Provider.findById(req.provider._id);
-    res.json(provider);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    const provider = req.provider;
+
+    return res.status(200).json({
+      name: provider.name,
+      mobile: provider.mobile,
+      pincode: provider.pincode,
+      categories: provider.categories,
+      createdAt: provider.createdAt,
+      isBanned: provider.isBanned,
+    });
+  } catch (err) {
+    console.error("GET PROVIDER PROFILE ERROR:", err);
+    return res.status(500).json({ message: "Failed to fetch profile" });
   }
 };
 
-// =================================================================
-// ✅ 5. UPDATE PROVIDER PROFILE
-// =================================================================
+/* ================= UPDATE PROVIDER PROFILE ================= */
 export const updateProviderProfile = async (req, res) => {
   try {
-    const updated = await Provider.findByIdAndUpdate(
-      req.provider._id,
-      req.body,
-      { new: true }
-    );
-    res.json(updated);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    const { name, pincode, categories } = req.body;
 
-// =================================================================
-// ✅ 6. GET PROVIDER BOOKINGS
-// =================================================================
-export const getProviderBookings = async (req, res) => {
-  try {
-    const bookings = await Booking.find({ provider: req.provider._id })
-      .populate("user", "name mobile")
-      .sort({ createdAt: -1 });
+    if (req.body.mobile) {
+      return res
+        .status(400)
+        .json({ message: "Mobile number cannot be updated" });
+    }
 
-    res.json(bookings);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    if (pincode && !validator.isPostalCode(pincode, "IN")) {
+      return res.status(400).json({ message: "Invalid pincode" });
+    }
 
-// =================================================================
-// ✅ 7. COMPLETE A BOOKING
-// =================================================================
-export const completeProviderBooking = async (req, res) => {
-  try {
-    const updated = await Booking.findByIdAndUpdate(
-      req.params.id,
-      { status: "completed" },
-      { new: true }
-    );
+    if (name) req.provider.name = name;
+    if (pincode) req.provider.pincode = pincode;
+    if (categories) req.provider.categories = categories;
 
-    res.json(updated);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    await req.provider.save();
 
-// =================================================================
-// ✅ 8. PROVIDER DASHBOARD STATS
-// =================================================================
-export const getProviderDashboardStats = async (req, res) => {
-  try {
-    const providerId = req.provider._id;
-
-    const totalBookings = await Booking.countDocuments({ provider: providerId });
-    const completed = await Booking.countDocuments({
-      provider: providerId,
-      status: "completed",
+    return res.status(200).json({
+      message: "Profile updated successfully",
+      provider: {
+        name: req.provider.name,
+        mobile: req.provider.mobile,
+        pincode: req.provider.pincode,
+        categories: req.provider.categories,
+      },
     });
-    const pending = await Booking.countDocuments({
-      provider: providerId,
-      status: "pending",
-    });
-
-    res.json({
-      totalBookings,
-      completed,
-      pending,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// =================================================================
-// ✅ 9. USER-SIDE METHODS (already existed)
-// =================================================================
-export const getProviders = async (req, res) => {
-  try {
-    const providers = await Provider.find({ verified: true });
-    res.json(providers);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-export const getProviderDetails = async (req, res) => {
-  try {
-    const provider = await Provider.findById(req.params.id);
-    res.json(provider);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    console.error("UPDATE PROVIDER PROFILE ERROR:", err);
+    return res.status(500).json({ message: "Failed to update profile" });
   }
 };

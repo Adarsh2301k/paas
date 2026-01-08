@@ -10,7 +10,8 @@ import generateToken from "../utils/generateToken.js";
  */
 export const sendOtp = async (req, res) => {
   try {
-    const { mobile, purpose, email } = req.body;
+    const { mobile, action, email } = req.body;
+    // action = "login" | "register"
 
     // 🔹 Validate mobile
     if (!validator.isMobilePhone(mobile, "en-IN")) {
@@ -18,7 +19,7 @@ export const sendOtp = async (req, res) => {
     }
 
     // 🔹 Validate email only for registration
-    if (purpose === "register") {
+    if (action === "register") {
       if (!validator.isEmail(email || "")) {
         return res
           .status(400)
@@ -29,33 +30,41 @@ export const sendOtp = async (req, res) => {
     const user = await User.findOne({ mobile });
 
     // 🔹 If login but user doesn’t exist
-    if (purpose === "login" && !user) {
+    if (action === "login" && !user) {
       return res
         .status(404)
         .json({ message: "User not registered. Please register first." });
     }
 
     // 🔹 If register but user already exists
-    if (purpose === "register" && user) {
+    if (action === "register" && user) {
       return res
         .status(400)
         .json({ message: "User already registered. Please login." });
     }
 
     // 🔹 Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000);
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
     console.log(`🔹 OTP for ${mobile}: ${otp}`);
 
-    // Save OTP (replace any previous OTP)
-    await Otp.deleteMany({ mobile });
-    await Otp.create({ mobile, otp });
+    // 🔹 Remove old OTPs for this user
+    await Otp.deleteMany({ mobile, purpose: "user" });
 
-    res.status(200).json({ message: "OTP sent successfully" });
+    // 🔹 Save OTP
+    await Otp.create({
+      mobile,
+      otp,
+      purpose: "user", // 🔐 always user here
+      expiresAt: new Date(Date.now() + 3 * 60 * 1000), // 3 min
+    });
+
+    return res.status(200).json({ message: "OTP sent successfully" });
   } catch (error) {
     console.error("Error sending OTP:", error);
-    res.status(500).json({ message: "Failed to send OTP" });
+    return res.status(500).json({ message: "Failed to send OTP" });
   }
 };
+
 
 /**
  * 🔐 VERIFY LOGIN OTP (existing users only)

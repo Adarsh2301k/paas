@@ -1,0 +1,168 @@
+import { useEffect, useState } from "react";
+import {
+  getProviderProfile,
+  updateProviderProfile,
+} from "../api/providerApi";
+import toast from "react-hot-toast";
+
+const categoriesList = [
+  "Electrician",
+  "Plumber",
+  "AC Repair",
+  "Cleaning",
+  "Carpenter",
+  "Electronics Repair",
+];
+
+const Profile = () => {
+  const [form, setForm] = useState({
+    name: "",
+    mobile: "",
+    pincode: "",
+    categories: [],
+  });
+
+  const [loading, setLoading] = useState(false);
+
+  /* ================= LOAD PROFILE ================= */
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const data = await getProviderProfile();
+        setForm(data);
+      } catch {
+        toast.error("Failed to load profile");
+      }
+    };
+    loadProfile();
+  }, []);
+
+  /* ================= HANDLERS ================= */
+  const changeHandler = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const toggleCategory = (cat) => {
+    setForm((prev) => ({
+      ...prev,
+      categories: prev.categories.includes(cat)
+        ? prev.categories.filter((c) => c !== cat)
+        : [...prev.categories, cat],
+    }));
+  };
+
+  const submitHandler = async () => {
+    if (!form.name || !form.pincode) {
+      toast.error("Name and pincode are required");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await updateProviderProfile({
+        name: form.name,
+        pincode: form.pincode,
+        categories: form.categories,
+      });
+      toast.success("Profile updated");
+    } catch {
+      toast.error("Update failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto p-4">
+      <h1 className="text-xl font-semibold mb-4">
+        👤 My Profile
+      </h1>
+
+      <div className="bg-white rounded-xl shadow p-4 md:p-6">
+        {/* GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Name */}
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Name
+            </label>
+            <input
+              name="name"
+              value={form.name}
+              onChange={changeHandler}
+              className="w-full border rounded-lg p-2 text-sm"
+              placeholder="Your name"
+            />
+          </div>
+
+          {/* Mobile (READ ONLY) */}
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Mobile Number
+            </label>
+            <input
+              value={form.mobile}
+              disabled
+              className="w-full border rounded-lg p-2 text-sm bg-gray-100 cursor-not-allowed"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Mobile number cannot be changed
+            </p>
+          </div>
+
+          {/* Pincode */}
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Pincode
+            </label>
+            <input
+              name="pincode"
+              value={form.pincode}
+              onChange={changeHandler}
+              className="w-full border rounded-lg p-2 text-sm"
+              placeholder="6-digit pincode"
+            />
+          </div>
+        </div>
+        
+
+        {/* Categories */}
+        <div className="mt-5">
+          <label className="block text-sm font-medium mb-2">
+            Service Categories
+          </label>
+
+          <div className="flex flex-wrap gap-2">
+            {categoriesList.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => toggleCategory(cat)}
+                className={`px-3 py-1 rounded-full text-sm border ${
+                  form.categories.includes(cat)
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Save Button */}
+        <div className="mt-6">
+          <button
+            onClick={submitHandler}
+            disabled={loading}
+            className="w-full md:w-auto bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Profile;
