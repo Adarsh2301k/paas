@@ -1,8 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getMyServices, getProviderProfile } from "../api/providerApi";
 import { getProviderBookings } from "../api/bookingApi";
 
+import { BarChart } from "recharts/es6";
+import {
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+
 const Dashboard = () => {
+  const navigate = useNavigate();
+
   const [provider, setProvider] = useState({
     name: "Provider",
     isBanned: false,
@@ -22,6 +34,8 @@ const Dashboard = () => {
     earnings: 0,
   });
 
+  const [bookings, setBookings] = useState([]);
+
   useEffect(() => {
     loadProfile();
     loadServices();
@@ -33,9 +47,7 @@ const Dashboard = () => {
     try {
       const data = await getProviderProfile();
       setProvider(data);
-    } catch (err) {
-      console.error("Profile load failed");
-    }
+    } catch {}
   };
 
   /* ================= SERVICES ================= */
@@ -49,24 +61,18 @@ const Dashboard = () => {
         active,
         inactive: services.length - active,
       });
-    } catch (err) {
-      console.error("Services load failed");
-    }
+    } catch {}
   };
 
   /* ================= BOOKINGS ================= */
   const loadBookings = async () => {
     try {
       const data = await getProviderBookings();
-      const bookings = data.bookings || [];
+      const list = data.bookings || [];
+      setBookings(list);
 
-      const total = bookings.length;
-
-      const completed = bookings.filter(
-        (b) => b.status === "completed"
-      );
-
-      const pending = bookings.filter(
+      const completed = list.filter((b) => b.status === "completed");
+      const pending = list.filter(
         (b) => b.status === "pending" || b.status === "accepted"
       );
 
@@ -76,20 +82,68 @@ const Dashboard = () => {
       );
 
       setBookingStats({
-        total,
+        total: list.length,
         completed: completed.length,
         pending: pending.length,
         earnings,
       });
-    } catch (err) {
-      console.error("Bookings load failed");
-    }
+    } catch {}
   };
 
-  const StatCard = ({ title, value, color }) => (
-    <div className="bg-white rounded-xl shadow p-5">
-      <p className="text-sm text-gray-500">{title}</p>
-      <p className={`text-3xl font-bold mt-2 ${color}`}>
+  /* ================= CHART DATA ================= */
+  const bookingChartData = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+
+    const thisMonth = today.getMonth();
+    const thisYear = today.getFullYear();
+
+    const prevMonthDate = new Date(today);
+    prevMonthDate.setMonth(thisMonth - 1);
+    const prevMonth = prevMonthDate.getMonth();
+    const prevMonthYear = prevMonthDate.getFullYear();
+
+    let todayCount = 0;
+    let yesterdayCount = 0;
+    let thisMonthCount = 0;
+    let prevMonthCount = 0;
+
+    bookings.forEach((b) => {
+      const d = new Date(`${b.date}T00:00:00`);
+
+      if (d.getTime() === today.getTime()) todayCount++;
+      if (d.getTime() === yesterday.getTime()) yesterdayCount++;
+
+      if (d.getMonth() === thisMonth && d.getFullYear() === thisYear)
+        thisMonthCount++;
+
+      if (
+        d.getMonth() === prevMonth &&
+        d.getFullYear() === prevMonthYear
+      )
+        prevMonthCount++;
+    });
+
+    return [
+      { name: "Today", bookings: todayCount },
+      { name: "Yesterday", bookings: yesterdayCount },
+      { name: "This Month", bookings: thisMonthCount },
+      { name: "Prev Month", bookings: prevMonthCount },
+    ];
+  }, [bookings]);
+
+  /* ================= STAT CARD ================= */
+  const StatCard = ({ title, value, color, to }) => (
+    <div
+      onClick={() => to && navigate(to)}
+      className="bg-white rounded-xl shadow p-4 cursor-pointer
+                 hover:shadow-md transition active:scale-[0.98]"
+    >
+      <p className="text-xs text-gray-500">{title}</p>
+      <p className={`text-2xl md:text-3xl font-bold mt-1 ${color}`}>
         {value}
       </p>
     </div>
@@ -98,62 +152,66 @@ const Dashboard = () => {
   return (
     <>
       {/* ===== HEADER ===== */}
-      <div className="bg-white rounded-xl shadow p-5 mb-6 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            👋 Hi, {provider.name}
-            {provider.isAdmin && (
-              <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
-                ADMIN
-              </span>
-            )}
-          </h1>
-
-          {provider.isBanned && (
-            <p className="text-sm text-red-600 mt-1">
-              🚫 Your account is restricted by admin
-            </p>
+      <div className="bg-white rounded-xl shadow p-5 mb-6">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          👋 Hi, {provider.name}
+          {provider.isAdmin && (
+            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+              ADMIN
+            </span>
           )}
-        </div>
+        </h1>
+
+        {provider.isBanned && (
+          <p className="text-sm text-red-600 mt-1">
+            🚫 Your account is restricted by admin
+          </p>
+        )}
       </div>
 
-      {/* ===== SERVICES STATS ===== */}
+      {/* ===== SERVICES ===== */}
       <h2 className="text-lg font-semibold mb-3">🧰 Services</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
         <StatCard
           title="Total Services"
           value={serviceStats.total}
           color="text-gray-800"
+          to="/my-services"
         />
         <StatCard
           title="Active Services"
           value={serviceStats.active}
           color="text-green-600"
+          to="/my-services"
         />
         <StatCard
           title="Inactive Services"
           value={serviceStats.inactive}
           color="text-red-500"
+          to="/my-services"
         />
       </div>
 
-      {/* ===== BOOKINGS STATS (REAL DATA) ===== */}
+      {/* ===== BOOKINGS ===== */}
       <h2 className="text-lg font-semibold mb-3">📦 Bookings</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         <StatCard
           title="Total Bookings"
           value={bookingStats.total}
           color="text-gray-800"
+          to="/bookings"
         />
         <StatCard
           title="Completed Jobs"
           value={bookingStats.completed}
           color="text-green-600"
+          to="/bookings"
         />
         <StatCard
           title="Pending Jobs"
           value={bookingStats.pending}
           color="text-yellow-600"
+          to="/bookings"
         />
         <StatCard
           title="Earnings (₹)"
@@ -162,9 +220,27 @@ const Dashboard = () => {
         />
       </div>
 
+      {/* ===== BOOKING TRENDS ===== */}
+      <h2 className="text-lg font-semibold mb-3">📊 Booking Trends</h2>
+      <div className="bg-white rounded-xl shadow p-4 mb-8 h-52 max-w-3xl mx-auto">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={bookingChartData}>
+            <XAxis dataKey="name" />
+            <YAxis allowDecimals={false} />
+            <Tooltip />
+            <Bar
+              dataKey="bookings"
+              fill="#2563eb"
+              radius={[6, 6, 0, 0]}
+              barSize={28}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
       {/* ===== QUICK ACTIONS ===== */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-gray-100 rounded-xl p-4 text-sm text-gray-500">
+        <div className="bg-gray-100 rounded-xl p-4 text-sm text-gray-400">
           🛠 Support coming soon
         </div>
       </div>

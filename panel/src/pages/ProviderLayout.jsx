@@ -5,16 +5,16 @@ const ProviderLayout = ({ children }) => {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="relative h-screen bg-gray-100 overflow-hidden">
       
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block w-64 bg-white shadow">
+      {/* ===== SIDEBAR (FIXED, DOES NOT AFFECT LAYOUT FLOW) ===== */}
+      <aside className="hidden md:block fixed inset-y-0 left-0 w-64 bg-white border-r z-40">
         <Sidebar />
-      </div>
+      </aside>
 
-      {/* Mobile Drawer */}
+      {/* ===== MOBILE DRAWER ===== */}
       {open && (
-        <div className="fixed inset-0 z-40 flex md:hidden">
+        <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="w-64 bg-white shadow">
             <Sidebar onClose={() => setOpen(false)} />
           </div>
@@ -25,9 +25,10 @@ const ProviderLayout = ({ children }) => {
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="flex-1">
-        {/* Mobile Topbar */}
+      {/* ===== MAIN CONTENT (ONLY SHIFT ON DESKTOP) ===== */}
+      <div className="h-full md:pl-64 flex flex-col">
+        
+        {/* MOBILE TOPBAR */}
         <div className="md:hidden bg-white shadow p-4 flex items-center">
           <button onClick={() => setOpen(true)} className="text-2xl">
             ☰
@@ -37,7 +38,10 @@ const ProviderLayout = ({ children }) => {
           </h1>
         </div>
 
-        <main className="p-4 md:p-6">{children}</main>
+        {/* SCROLL AREA */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          {children}
+        </main>
       </div>
     </div>
   );
