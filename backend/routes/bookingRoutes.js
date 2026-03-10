@@ -24,7 +24,6 @@ router.get("/my", protect, getMyBookings);
 router.put("/cancel/:bookingId", protect, cancelBooking);
 
 // provider booking managaement s 
-
 router.get(
   "/provider",
   protectProvider,
